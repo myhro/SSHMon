@@ -4,10 +4,10 @@ SSH Monitor
 A daemon that watches all SSH/SFTP login entries on the authentication log (usually `/var/log/auth.log`) and e-mail them to yourself. It works like a very simple intrusion detection system, informing you about any successful logins on your SSH server. Written entirely in Python, you just need:
 
 * A Linux box (maybe anything *NIX, but was tested only on Linux) running a SSH server (OpenSSH or Dropbear).
-* Python 2.x (it was developed on the 2.6.6 release, but will probably run on anything higher than Python 2.4)
-* Read access to /var/log/auth.log (you didn't though you could analyse the log without reading it, didn't you?)
-* Write access to /var/run/ (to be able to terminate it's execution through 'stop' command)
-* Local SMTP server (like Exim or Sendmail)
+* Python 2.x (it was developed on the 2.6.6 release, but will probably run on anything higher than Python 2.4).
+* Read access to /var/log/auth.log (you didn't though you could analyse the log without reading it, didn't you?).
+* Write access to /var/run/ (to be able to terminate it's execution through 'stop' command).
+* Local SMTP server (like Exim or Sendmail).
 
 ## Installation and Usage
 

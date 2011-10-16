@@ -7,36 +7,14 @@ from socket import gethostname
 from string import join
 from sys import argv, exit, stderr, stdin, stdout
 from time import sleep
+from oswrapper import OSWrapper
 
-def daemonize(newstdin = '/dev/null', newstdout = '/dev/null', newstderr = '/dev/null'):
-    # Perform first fork.
-    try:
-        pid = fork()
-        if pid > 0:
-            exit(0) # Exit first parent.
-    except OSError, e:
-        stderr.write("Fork #1 failed: ({0}) {1}\n".format(e.errno, e.strerror))
-        exit(1)
-    # Decouple from parent environment.
-    chdir("/")
-    umask(0)
-    setsid()
-    # Perform second fork.
-    try:
-        pid = fork()
-        if pid > 0:
-            exit(0) # Exit second parent.
-    except OSError, e:
-        stderr.write("Fork #2 failed: ({0}) {1}\n".format(e.errno, e.strerror))
-        exit(1)
-    # The process is now daemonized, redirect standard file descriptors.
-    for f in stdout, stderr: f.flush()
-    si = file(newstdin, 'r')
-    so = file(newstdout, 'a+')
-    se = file(newstderr, 'a+', 0)
-    dup2(si.fileno(), stdin.fileno())
-    dup2(so.fileno(), stdout.fileno())
-    dup2(se.fileno(), stderr.fileno())
+def daemonize(oswrapper = OSWrapper(),newstdin = '/dev/null', newstdout = '/dev/null', newstderr = '/dev/null'):
+    oswrapper.perform_first_fork()
+    oswrapper.decouple_from_parent_environment()
+    oswrapper.perform_second_fork()
+    oswrapper.redirect_standard_file_descriptors(newstdin, newstdout, newstderr)
+
 
 def ssh_monitor():
     # Keep track of the time of the last login.
@@ -61,7 +39,11 @@ def ssh_monitor():
                 # If is the first line, switch the records of last two entries.
                 if i == 0:
                     previous, last = last, compare
-                # If the file was read at least once and the loop got here, it means that at least one login happened during the execution of SSH Monitor. That entry is e-mailed (through a local SMTP daemon) to the address specified as argument when the program was called from the command line.
+                """ If the file was read at least once and the loop got here, 
+                it means that at least one login happened during the execution 
+                of SSH Monitor. That entry is e-mailed (through a local SMTP 
+                daemon) to the address specified as argument when the program 
+                was called from the command line."""
                 if parsed:
                     email = {
                         'from': 'sshmonitor@{0}'.format(gethostname()),
@@ -92,28 +74,38 @@ def ssh_monitor():
 def main():
     # The program can't be called without an argument (or more than one). A little 'help' is displayed.
     if len(argv) != 2:
-        print '-' * 15 + '\n- SSH Monitor -\n' + '-' * 15
-        print '\nUsage:\n\tTo run: python {0} email@example.com\n\tTo end: python {0} stop'.format(argv[0])
-        exit(1)
+        print_usage()
     elif argv[1] == 'stop':
-        # If the argument is 'stop', it will check for the existence of pid file, read it and kill the process.
-        if path.isfile('/var/run/sshmon.pid'):
-            runfile = open('/var/run/sshmon.pid', 'r')
-            procpid = runfile.readline()
-            runfile.close()
-            system('kill -15 {0}'.format(procpid))
-            system('rm /var/run/sshmon.pid')
-        # If the file doesn't exists, it is not running.
-        else:
-            print 'Are you sure it is running?'
+        stop()
     else:
-        # Daemonizes the process, so it won't need any terminal and runs truly in the background.
-        daemonize()
-        # Record the current process pid in a file, so it could be killed later.
-        runfile = open('/var/run/sshmon.pid', 'w')
-        runfile.write(str(getpid()))
+        daemonize_process()
+
+def print_usage():
+    print '-' * 15 + '\n- SSH Monitor -\n' + '-' * 15
+    print '\nUsage:\n\tTo run: python {0} email@example.com\n\tTo end: python {0} stop'.format(argv[0])
+    exit(1)
+
+def stop():
+    # If the argument is 'stop', it will check for the existence of pid file, 
+    # read it and kill the process. 
+    if path.isfile('/var/run/sshmon.pid'):
+        runfile = open('/var/run/sshmon.pid', 'r')
+        procpid = runfile.readline()
         runfile.close()
-        # Parses the authentication log and send an e-mail for every login.
-        ssh_monitor()
+        system('kill -15 {0}'.format(procpid))
+        system('rm /var/run/sshmon.pid')
+    # If the file doesn't exists, it is not running.
+    else:
+        print 'Are you sure it is running?'
+
+def daemonize_process():
+    # Daemonizes the process, so it won't need any terminal and runs truly in the background.
+    daemonize()
+    # Record the current process pid in a file, so it could be killed later.
+    runfile = open('/var/run/sshmon.pid', 'w')
+    runfile.write(str(getpid()))
+    runfile.close()
+    # Parses the authentication log and send an e-mail for every login.
+    ssh_monitor()
 
 if __name__ == "__main__": main()

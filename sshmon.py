@@ -16,60 +16,82 @@ def daemonize(oswrapper = OSWrapper(),newstdin = '/dev/null', newstdout = '/dev/
     oswrapper.redirect_standard_file_descriptors(newstdin, newstdout, newstderr)
 
 
-def ssh_monitor():
+class NotChangedException(RuntimeError):
+    pass
+
+class ssh_monitor(object):
     # Keep track of the time of the last login.
     last = ''
     previous = ''
-    # In the first iteration, it will only read the file and do nothing.
+    #do nothing at first interation
     parsed = False
-    # Runs forever...
-    while True:
-        # Line counter.
-        i = 0
-        # Read the authentication log file. This is done in a reverse way so it won't need to read the whole file every time, only the new entries.
-        logfile = reversed(open('/var/log/auth.log', 'r').readlines())
+    line_counter = 0
+
+    def run(self):
+        while True:
+            try:
+                self.loop()
+            except NotChangedException:
+                break
+
+    def loop(self):
+        logfile = self.read_auth_logfile()
         for line in logfile:
-            # Check if the current line is about a OpenSSH or Dropbear login.
-            if 'sshd' in line and 'Accepted' in line or 'dropbear' in line and 'succeeded' in line:
-                # Get the time of log entry (hours:minutes:seconds).
-                compare = line.split()[2]
-                # If it is equal to one  of the last two entries, the file hasn't changed.
-                if last == compare or previous == compare:
-                    break
-                # If is the first line, switch the records of last two entries.
-                if i == 0:
-                    previous, last = last, compare
-                """ If the file was read at least once and the loop got here, 
-                it means that at least one login happened during the execution 
-                of SSH Monitor. That entry is e-mailed (through a local SMTP 
-                daemon) to the address specified as argument when the program 
-                was called from the command line."""
-                if parsed:
-                    email = {
-                        'from': 'sshmonitor@{0}'.format(gethostname()),
-                        'to': argv[1],
-                        'subj': 'SSH Login on {0}'.format(gethostname()),
-                        'text': line
-                    }
-                    email['body'] = join((
-                        'From: {0}'.format(email['from']),
-                        'To: {0}'.format(email['to']),
-                        'Subject: {0}'.format(email['subj']),
-                        '',
-                        email['text']),
-                        '\n'
-                    )
-                    smtp = SMTP('localhost')
-                    smtp.sendmail(email['from'], email['to'], email['body'])
-                    smtp.quit()
-                    del email
-                    del smtp
-                # Line counter iteration.
-                i += 1
-        # Mark the file as "read".
-        parsed = True
-        # Wait for ten seconds to do it again.
+            if self.is_openssh_or_dropbear_login(line):
+                self.last_log_entry = line.split()[2]
+                self.ensure_it_has_changed_before_procceed()
+                self.switch_records()
+                self.send_mail_if_login_has_happned()
+                self.line_counter += 1
+        self.parsed = True
         sleep(10)
+
+    def ensure_it_has_changed_before_procceed(self):
+        if self.last == self.last_log_entry or self.previous == self.last_log_entry:
+            raise NotChangedException() 
+
+    def switch_records(self):
+        if self.line_counter == 0:
+            self.previous, self.last = self.last, self.compare
+
+    def send_mail_if_login_has_happned(self):
+        if self.parsed:
+            self.send_mail()
+
+
+    def read_auth_logfile(self):
+        """
+        This is done in a reverse way so it won't need to read the whole file every 
+        time, only the new entries.
+        """
+        return reversed(open('/var/log/auth.log', 'r').readlines())
+
+    def is_openssh_or_dropbear_login(self, line):
+        return 'sshd' in line and\
+                'Accepted' in line or\
+                'dropbear' in line and\
+                'succeeded' in line
+
+    def send_mail(self):
+        email = {
+            'from': 'sshmonitor@{0}'.format(gethostname()),
+            'to': argv[1],
+            'subj': 'SSH Login on {0}'.format(gethostname()),
+            'text': line
+        }
+        email['body'] = join((
+            'From: {0}'.format(email['from']),
+            'To: {0}'.format(email['to']),
+            'Subject: {0}'.format(email['subj']),
+            '',
+            email['text']),
+            '\n'
+        )
+        smtp = SMTP('localhost')
+        smtp.sendmail(email['from'], email['to'], email['body'])
+        smtp.quit()
+        del email
+        del smtp
 
 def main():
     # The program can't be called without an argument (or more than one). A little 'help' is displayed.
@@ -106,6 +128,6 @@ def daemonize_process():
     runfile.write(str(getpid()))
     runfile.close()
     # Parses the authentication log and send an e-mail for every login.
-    ssh_monitor()
+    ssh_monitor().run()
 
 if __name__ == "__main__": main()

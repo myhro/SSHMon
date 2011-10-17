@@ -41,3 +41,21 @@ class SSHmonTests(unittest.TestCase):
         fudge.verify()
         fudge.clear_expectations()
         
+    def test_it_should_raise_not_changed_exception_when_there_is_no_change(self):
+        ssh = sshmon.ssh_monitor()
+        ssh.last = 'last'
+        ssh.last_log_entry = 'last'
+        ssh.previous = 'last'
+        try:
+            ssh.ensure_it_has_changed_before_procceed()
+            self.fail('an exception should be thrown at this point')
+        except sshmon.NotChangedException:
+            pass
+
+    def test_it_should_send_mail_if_it_was_parsed(self):
+        ssh = sshmon.ssh_monitor()
+        ssh.parsed = True
+        ssh.send_mail = fudge.Fake('send_mail').expects('send_mail').send_mail
+        ssh.send_mail_if_login_has_happned()
+        fudge.verify()
+        fudge.clear_expectations()

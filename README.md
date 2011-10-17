@@ -23,13 +23,7 @@ If you want to stop it, type:
 
 ## Running tests
 
-Ensure you have all dependencies installed:
-
-    pip install -r requirements.txt
-
-Run the tests:
-
-    nosetests
+    python tests.py
 
 Note: there is only unittests in this package. Integration tests will be written
 soon.

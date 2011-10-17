@@ -59,3 +59,6 @@ class SSHmonTests(unittest.TestCase):
         ssh.send_mail_if_login_has_happned()
         fudge.verify()
         fudge.clear_expectations()
+
+if __name__ == '__main__':
+    unittest.main()

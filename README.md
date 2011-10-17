@@ -21,6 +21,13 @@ If you want to stop it, type:
 
     python sshmon.py stop
 
+## Running tests
+
+    python tests.py
+
+Note: there is only unittests in this package. Integration tests will be written
+soon.
+
 ## License
 
 The source code is licensed under the GNU General Public License Version 2 (GPLv2). It is available in both [HTML](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) and [TXT](https://www.gnu.org/licenses/gpl-2.0.txt) formats.

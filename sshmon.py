@@ -8,12 +8,15 @@ from string import join
 from sys import argv, exit, stderr, stdin, stdout
 from time import sleep
 
-def daemonize(newstdin = '/dev/null', newstdout = '/dev/null', newstderr = '/dev/null'):
+
+def daemonize(newstdin='/dev/null', newstdout='/dev/null',
+              newstderr='/dev/null'):
     # Perform first fork.
+
     try:
         pid = fork()
         if pid > 0:
-            exit(0) # Exit first parent.
+            exit(0)  # Exit first parent.
     except OSError, e:
         stderr.write("Fork #1 failed: ({0}) {1}\n".format(e.errno, e.strerror))
         exit(1)
@@ -25,18 +28,20 @@ def daemonize(newstdin = '/dev/null', newstdout = '/dev/null', newstderr = '/dev
     try:
         pid = fork()
         if pid > 0:
-            exit(0) # Exit second parent.
+            exit(0)  # Exit second parent.
     except OSError, e:
         stderr.write("Fork #2 failed: ({0}) {1}\n".format(e.errno, e.strerror))
         exit(1)
     # The process is now daemonized, redirect standard file descriptors.
-    for f in stdout, stderr: f.flush()
+    for f in stdout, stderr:
+        f.flush()
     si = file(newstdin, 'r')
     so = file(newstdout, 'a+')
     se = file(newstderr, 'a+', 0)
     dup2(si.fileno(), stdin.fileno())
     dup2(so.fileno(), stdout.fileno())
     dup2(se.fileno(), stderr.fileno())
+
 
 def ssh_monitor():
     # Keep track of the time of the last login.
@@ -48,20 +53,31 @@ def ssh_monitor():
     while True:
         # Line counter.
         i = 0
-        # Read the authentication log file. This is done in a reverse way so it won't need to read the whole file every time, only the new entries.
+        ''' Read the authentication log file.
+        This is done in a reverse way so it won't need to read
+        the whole file every time, only the new entries.
+        '''
         logfile = reversed(open('/var/log/auth.log', 'r').readlines())
         for line in logfile:
             # Check if the current line is about a OpenSSH or Dropbear login.
-            if 'sshd' in line and 'Accepted' in line or 'dropbear' in line and 'succeeded' in line:
+            if ('sshd' in line and 'Accepted' in line
+                or 'dropbear' in line and 'succeeded' in line):
                 # Get the time of log entry (hours:minutes:seconds).
                 compare = line.split()[2]
-                # If it is equal to one  of the last two entries, the file hasn't changed.
+                ''' If it is equal to one of the last two entries,
+                the file hasn't changed.
+                '''
                 if last == compare or previous == compare:
                     break
                 # If is the first line, switch the records of last two entries.
                 if i == 0:
                     previous, last = last, compare
-                # If the file was read at least once and the loop got here, it means that at least one login happened during the execution of SSH Monitor. That entry is e-mailed (through a local SMTP daemon) to the address specified as argument when the program was called from the command line.
+                ''' If the file was read at least once and the loop got here,
+                it means that at least one login happened during the execution
+                of SSH Monitor. That entry is e-mailed (through a local SMTP
+                daemon) to the address specified as argument when the program
+                was called from the command line.
+                '''
                 if parsed:
                     email = {
                         'from': 'sshmonitor@{0}'.format(gethostname()),
@@ -89,14 +105,21 @@ def ssh_monitor():
         # Wait for ten seconds to do it again.
         sleep(10)
 
+
 def main():
-    # The program can't be called without an argument (or more than one). A little 'help' is displayed.
+    ''' The program can't be called without an argument (or more than one).
+    A little 'help' is displayed.
+    '''
     if len(argv) != 2:
         print '-' * 15 + '\n- SSH Monitor -\n' + '-' * 15
-        print '\nUsage:\n\tTo run: python {0} email@example.com\n\tTo end: python {0} stop'.format(argv[0])
+        print '''\nUsage:\n\tTo run: python {0} email@example.com
+                \tTo end: python {0} stop'.format(argv[0])
+              '''
         exit(1)
     elif argv[1] == 'stop':
-        # If the argument is 'stop', it will check for the existence of pid file, read it and kill the process.
+        ''' If the argument is 'stop', it will check for the existence of
+        the pid file, read it and kill the process.
+        '''
         if path.isfile('/var/run/sshmon.pid'):
             runfile = open('/var/run/sshmon.pid', 'r')
             procpid = runfile.readline()
@@ -107,13 +130,18 @@ def main():
         else:
             print 'Are you sure it is running?'
     else:
-        # Daemonizes the process, so it won't need any terminal and runs truly in the background.
+        ''' Daemonizes the process, so it won't need any terminal and
+        runs truly in the background.
+        '''
         daemonize()
-        # Record the current process pid in a file, so it could be killed later.
+        ''' Record the current process pid in a file, so it could be
+        killed later.
+        '''
         runfile = open('/var/run/sshmon.pid', 'w')
         runfile.write(str(getpid()))
         runfile.close()
         # Parses the authentication log and send an e-mail for every login.
         ssh_monitor()
 
-if __name__ == "__main__": main()
+if __name__ == "__main__":
+    main()
